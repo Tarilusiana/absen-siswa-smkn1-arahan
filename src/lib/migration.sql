@@ -1,8 +1,10 @@
--- Database: absen_siswa
+-- Database: absensiswaopencode
 -- Jalankan script ini di MariaDB untuk membuat struktur database
+-- Gunakan: sudo mariadb < src/lib/migration.sql
+-- Atau manual: sudo mariadb absensiswaopencode < src/lib/migration.sql
 
-CREATE DATABASE IF NOT EXISTS absen_siswa;
-USE absen_siswa;
+-- CREATE DATABASE IF NOT EXISTS absensiswaopencode;
+-- USE absensiswaopencode;
 
 -- Tabel Kelas
 CREATE TABLE IF NOT EXISTS kelas (
@@ -20,6 +22,7 @@ CREATE TABLE IF NOT EXISTS siswa (
     nisn VARCHAR(20) NOT NULL UNIQUE,
     nama VARCHAR(200) NOT NULL,
     id_kelas INT NOT NULL,
+    password VARCHAR(255) NOT NULL DEFAULT 'siswa123',
     device_id VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -64,6 +67,12 @@ CREATE TABLE IF NOT EXISTS absensi (
     FOREIGN KEY (id_siswa) REFERENCES siswa(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- Insert data contoh
+-- ========================
+-- SEED DATA (opsional)
+-- Uncomment dan jalankan setelah import tabel
+-- ========================
+
 -- INSERT INTO admin (username, password, nama) VALUES ('admin', 'admin123', 'Administrator');
 -- INSERT INTO kelas (nama, tingkat, jurusan) VALUES ('X RPL 1', 10, 'RPL'), ('X TKJ 1', 10, 'TKJ');
+-- INSERT INTO siswa (nisn, nama, id_kelas, password) VALUES ('10001', 'Ahmad Fauzi', 1, 'siswa10001');
+-- INSERT INTO wali_kelas (username, password, nama, id_kelas) VALUES ('wali_rpl1', 'wali123', 'Bpk. Supriyadi', 1);
