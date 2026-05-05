@@ -2,9 +2,9 @@ module.exports = {
   apps: [
     {
       name: "absen-siswa",
-      script: "node_modules/.bin/next",
-      args: "start -p 3000",
-      cwd: __dirname,
+      script: "npm",
+      args: "run start",
+      cwd: "/opt/absen-siswa",
       env: {
         NODE_ENV: "production",
       },
