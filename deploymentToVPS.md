@@ -1,48 +1,41 @@
 # Deploy Absensi SMKN 1 Arahan ke VPS
 
-Panduan lengkap deploy aplikasi Next.js (Web Dashboard + API) ke VPS Ubuntu/Debian.
+Panduan langkah-demi-langkah deploy Next.js (Web + API) ke VPS Ubuntu/Debian.
 
-## 1. Persiapan VPS
+---
 
-### Update System & Install Dependencies
+### Langkah 1 — Update sistem & install dependencies
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-
-# Install Node.js 20
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# Verifikasi
-node --version   # harus v20.x
-npm --version    # harus 10.x
-
-# Install MariaDB
-sudo apt install -y mariadb-server
-sudo systemctl enable mariadb
-sudo systemctl start mariadb
-sudo mysql_secure_installation
-
-# Install PM2 (process manager) & Nginx
+sudo apt install -y nginx mariadb-server
 sudo npm install -g pm2
-sudo apt install -y nginx
-sudo systemctl enable nginx
 ```
 
-### Setup Firewall
+Pastikan Node.js v18+ sudah terinstall (`node --version`). VPS ini pakai v22 — ok.
+
+---
+
+### Langkah 2 — Setup firewall
 
 ```bash
-sudo ufw allow 22/tcp      # SSH
-sudo ufw allow 80/tcp      # HTTP
-sudo ufw allow 443/tcp     # HTTPS
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
 sudo ufw enable
 ```
 
 ---
 
-## 2. Setup Database
+### Langkah 3 — Setup MariaDB
 
-### Buat Database & User
+```bash
+sudo systemctl enable mariadb
+sudo systemctl start mariadb
+sudo mysql_secure_installation
+```
+
+Buat database dan user:
 
 ```bash
 sudo mariadb
@@ -50,55 +43,72 @@ sudo mariadb
 
 ```sql
 CREATE DATABASE absensiswaopencode CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
 CREATE USER 'absen_app'@'localhost' IDENTIFIED BY 'PASSWORD_AMAN_ANDA';
 GRANT ALL PRIVILEGES ON absensiswaopencode.* TO 'absen_app'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
 ```
 
-### Import Struktur Tabel
-
-```bash
-sudo mariadb absensiswaopencode < src/lib/migration.sql
-```
-
-### Seed Data Awal (Opsional)
-
-```sql
-USE absensiswaopencode;
-
--- Admin
-INSERT INTO admin (username, password, nama) VALUES ('admin', 'admin123', 'Administrator');
-
--- Contoh Kelas
-INSERT INTO kelas (nama, tingkat, jurusan) VALUES
-('X RPL 1', 10, 'RPL'),
-('XI RPL 1', 11, 'RPL'),
-('XII RPL 1', 12, 'RPL');
-
--- Contoh Wali Kelas
-INSERT INTO wali_kelas (username, password, nama, id_kelas) VALUES
-('wali_rpl1', 'password123', 'Bpk. Ahmad', 1);
-```
-
 ---
 
-## 3. Clone & Setup Aplikasi
+### Langkah 4 — Clone repository
 
 ```bash
 git clone https://github.com/Tarilusiana/absen-siswa-smkn1-arahan.git /opt/absen-siswa
 cd /opt/absen-siswa
 ```
 
-### Konfigurasi Environment
+---
+
+### Langkah 5 — Import struktur database
+
+```bash
+sudo mariadb absensiswaopencode < src/lib/migration.sql
+```
+
+---
+
+### Langkah 6 — Seed data awal
+
+```bash
+sudo mariadb absensiswaopencode
+```
+
+```sql
+INSERT INTO admin (username, password, nama) VALUES ('admin', 'admin123', 'Administrator');
+
+INSERT INTO kelas (nama, tingkat, jurusan) VALUES
+('X RPL 1', 10, 'RPL'),
+('X RPL 2', 10, 'RPL'),
+('XI RPL 1', 11, 'RPL'),
+('X TKJ 1', 10, 'TKJ');
+
+INSERT INTO siswa (nisn, nama, id_kelas, password) VALUES
+('10001', 'Ahmad Fauzi', 1, 'siswa10001'),
+('10002', 'Budi Santoso', 1, 'siswa10002'),
+('10003', 'Citra Dewi', 1, 'siswa10003'),
+('10004', 'Dian Permata', 1, 'siswa10004'),
+('10005', 'Eko Prasetyo', 1, 'siswa10005');
+
+INSERT INTO wali_kelas (username, password, nama, id_kelas) VALUES
+('wali_rpl1', 'wali123', 'Bpk. Supriyadi, S.Kom', 1),
+('wali_rpl2', 'wali123', 'Ibu. Ratna Dewi, S.T', 2),
+('wali_rpl3', 'wali123', 'Bpk. Hendra Gunawan, M.Pd', 3),
+('wali_tkj1', 'wali123', 'Ibu. Maya Anggraini, S.Kom', 4);
+
+EXIT;
+```
+
+---
+
+### Langkah 7 — Konfigurasi .env
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-Isi `.env`:
+Isi:
 
 ```env
 DB_HOST=localhost
@@ -106,69 +116,55 @@ DB_PORT=3306
 DB_USER=absen_app
 DB_PASSWORD=PASSWORD_AMAN_ANDA
 DB_NAME=absensiswaopencode
-JWT_SECRET=isi-dengan-random-string-minimal-32-karakter
+JWT_SECRET=<output dari openssl rand -base64 32>
 NEXT_PUBLIC_API_URL=/api
 ```
 
-Generate JWT_SECRET:
+---
+
+### Langkah 8 — Sesuaikan koordinat sekolah
+
+Ganti koordinat di dua file dengan lokasi asli SMKN 1 Arahan:
 
 ```bash
-openssl rand -base64 32
+nano src/app/api/absensi/absen/route.ts      # baris 4-5
+nano mobile/lib/location.ts                   # baris 3-4
 ```
 
-### Sesuaikan Koordinat Sekolah
+---
 
-Buka 2 file ini dan ganti koordinat dengan lokasi asli SMKN 1 Arahan:
-
-```bash
-# Koordinat untuk API (validasi absen mobile)
-nano src/app/api/absensi/absen/route.ts
-
-# Koordinat untuk mobile app (pre-check di HP)
-nano mobile/lib/location.ts
-```
-
-### Install & Build
+### Langkah 9 — Install & build
 
 ```bash
 npm install
 npm run build
 ```
 
-Pastikan build sukses tanpa error.
+Pastikan output `✓ Compiled successfully` dan tidak ada error TypeScript.
 
 ---
 
-## 4. Jalankan dengan PM2
+### Langkah 10 — Jalankan dengan PM2
 
 ```bash
-# Start aplikasi
 pm2 start ecosystem.config.cjs
-
-# Auto-start saat VPS reboot
 pm2 save
 pm2 startup
-# Ikuti perintah yang muncul
 ```
 
-### Command PM2 Berguna
+Test:
 
 ```bash
-pm2 status           # Lihat status
-pm2 logs absen-siswa # Lihat log
-pm2 restart absen-siswa  # Restart setelah update kode
-pm2 stop absen-siswa     # Stop
-pm2 delete absen-siswa   # Hapus dari daftar
-
-# Setelah git pull + npm run build:
-pm2 restart absen-siswa
+curl http://localhost:3000/api/server/waktu
 ```
+
+Harus return JSON dengan `success: true`.
 
 ---
 
-## 5. Setup Nginx Reverse Proxy
+### Langkah 11 — Setup Nginx reverse proxy
 
-### Buat Config Nginx
+Buat config:
 
 ```bash
 sudo nano /etc/nginx/sites-available/absen-siswa
@@ -177,14 +173,9 @@ sudo nano /etc/nginx/sites-available/absen-siswa
 ```nginx
 server {
     listen 80;
-    server_name ABSENSI_DOMAIN_ANDA;   # Ganti dengan domain/IP VPS
+    server_name DOMAIN_ATAU_IP_VPS;
 
-    client_max_body_size 10M;          # Untuk upload CSV
-
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
+    client_max_body_size 10M;
 
     location / {
         proxy_pass http://localhost:3000;
@@ -197,129 +188,84 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
-    # Cache static assets
-    location /_next/static {
-        proxy_pass http://localhost:3000;
-        proxy_cache_valid 200 60m;
-        add_header Cache-Control "public, max-age=3600";
-    }
 }
 ```
 
-### Aktifkan Config
+Aktifkan:
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/absen-siswa /etc/nginx/sites-enabled/
-sudo rm /etc/nginx/sites-enabled/default  # Hapus default
-sudo nginx -t                              # Test config
+sudo rm /etc/nginx/sites-enabled/default
+sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-### Setup SSL (HTTPS) — Optional
+---
+
+### Langkah 12 — Verifikasi
+
+Buka `http://IP_VPS` di browser:
+
+| Role | Username | Password |
+|---|---|---|
+| Admin | `admin` | `admin123` |
+| Wali Kelas | `wali_rpl1` | `wali123` |
+
+Test API mobile:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login/siswa \
+  -H "Content-Type: application/json" \
+  -d '{"nisn":"10001","password":"siswa10001","device_id":"test"}'
+```
+
+---
+
+### Langkah 13 — SSL HTTPS (opsional)
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d ABSENSI_DOMAIN_ANDA
-sudo certbot renew --dry-run  # Test auto-renewal
+sudo certbot --nginx -d DOMAIN_ANDA
 ```
 
 ---
 
-## 6. Verifikasi
+### Langkah 14 — Build APK mobile
 
-1. Buka browser → akses domain/IP VPS
-2. Login dengan akun admin: `admin` / `admin123`
-3. Test CRUD kelas, siswa, wali kelas
-4. Test laporan & export CSV
-
-### Test API Mobile
+Setelah web jalan, ganti API URL di mobile app:
 
 ```bash
-# Server time
-curl http://localhost:3000/api/server/waktu
+cd mobile
+nano lib/api.ts   # ganti baris 1 ke https://DOMAIN_VPS/api
+```
 
-# Login siswa
-curl -X POST http://localhost:3000/api/auth/login/siswa \
-  -H "Content-Type: application/json" \
-  -d '{"nisn":"10001","password":"siswa10001","device_id":"test-device"}'
+Install EAS CLI dan build:
+
+```bash
+npm install -g eas-cli
+eas login
+eas build --platform android --profile production
 ```
 
 ---
 
-## 7. Update Aplikasi
-
-Setiap ada perubahan kode yang di-push ke GitHub:
+### Update app setelah ada perubahan kode
 
 ```bash
 cd /opt/absen-siswa
 git pull
-npm install          # Kalau ada dependency baru
-npm run build        # Penting!
+npm install
+npm run build
 pm2 restart absen-siswa
 ```
 
 ---
 
-## 8. Build APK Mobile
+### Troubleshooting
 
-Setelah web + API berjalan, build APK untuk siswa:
-
-```bash
-cd mobile
-nano lib/api.ts   # Ganti API_BASE ke domain VPS: https://domain/api
-```
-
-Lalu build APK:
-
-```bash
-# Install EAS CLI
-npm install -g eas-cli
-
-# Login ke Expo
-eas login
-
-# Build APK
-eas build --platform android --profile production
-```
-
-Atau build lokal dengan Android Studio:
-
-```bash
-npx expo prebuild
-cd android
-./gradlew assembleRelease
-# APK ada di: android/app/build/outputs/apk/release/
-```
-
----
-
-## 9. Troubleshooting
-
-### Aplikasi tidak bisa akses database
-```bash
-# Test koneksi DB
-mariadb -u absen_app -p -h localhost absensiswaopencode
-pm2 logs absen-siswa --lines 50
-```
-
-### Port 3000 sudah dipakai
-```bash
-sudo lsof -i :3000
-sudo kill -9 PID
-pm2 restart absen-siswa
-```
-
-### Nginx 502 Bad Gateway
-```bash
-pm2 status                                    # Pastikan app running
-sudo tail -f /var/log/nginx/error.log         # Cek log Nginx
-```
-
-### Reset device siswa yang terkunci
-```bash
-# Via Web Dashboard: Admin → Manajemen Siswa → klik tombol Reset Device
-
-# Atau via SQL:
-sudo mariadb absensiswaopencode -e "UPDATE siswa SET device_id = NULL WHERE nisn = 'NISN_SISWA'"
-```
+| Masalah | Solusi |
+|---|---|
+| App tidak konek DB | `mariadb -u absen_app -p absensiswaopencode` — test manual |
+| Port 3000 dipakai | `sudo fuser -k 3000/tcp && pm2 restart absen-siswa` |
+| Nginx 502 | `pm2 status` — pastikan status `online` |
+| Reset device siswa | Web admin → Siswa → klik Reset Device, atau `sudo mariadb absensiswaopencode -e "UPDATE siswa SET device_id = NULL WHERE nisn='...'"` |
